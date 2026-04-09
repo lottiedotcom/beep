@@ -3,267 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3-Band Lo-Fi Processor</title>
-    <style>
-        body {
-            background-color: #000000;
-            color: #ff66b2; /* Y2K Pink */
-            font-family: 'Courier New', Courier, monospace;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-image: radial-gradient(#ff66b2 1px, transparent 1px);
-            background-size: 20px 20px;
-        }
-        .container {
-            background-color: #1a000d; 
-            border: 3px dashed #ffffff;
-            padding: 30px;
-            width: 450px;
-            text-align: center;
-            box-shadow: 10px 10px 0px #ff66b2;
-        }
-        h1 {
-            letter-spacing: 2px;
-            text-shadow: 2px 2px #ffffff;
-            margin-bottom: 30px;
-        }
-        .input-group {
-            margin: 20px 0;
-            text-align: left;
-        }
-        label {
-            font-weight: bold;
-            display: block;
-            margin-bottom: 8px;
-            color: #ffffff;
-        }
-        input[type="file"], input[type="text"] {
-            width: 90%;
-            background: #000000;
-            color: #ff66b2;
-            border: 2px solid #ff66b2;
-            padding: 10px;
-            font-family: 'Courier New', Courier, monospace;
-        }
-        button {
-            background-color: #ffffff;
-            color: #000000;
-            border: 2px solid #ff66b2;
-            padding: 15px 25px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            width: 100%;
-            margin-top: 15px;
-            text-transform: uppercase;
-        }
-        button:hover {
-            background-color: #ff66b2;
-            color: #ffffff;
-        }
-        #status {
-            margin-top: 20px;
-            font-size: 14px;
-            font-weight: bold;
-            color: #ffffff;
-        }
-        #download-link {
-            display: block;
-            margin-top: 20px;
-            background-color: #ff66b2;
-            color: #000000;
-            font-weight: bold;
-            text-decoration: none;
-            padding: 10px;
-            border: 2px solid #ffffff;
-        }
-    </style>
+    <title>Lo-Fi Live Mixer</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div class="container">
-    <h1>Stem-Splitter Vibe</h1>
-    
-    <div class="input-group">
-        <label>1. Upload Track</label>
-        <input type="file" id="audio-upload" accept="audio/*">
+    <div class="mixer-board">
+        <h1>Lo-Fi Mixer Board</h1>
+        
+        <div class="controls">
+            <input type="file" id="audio-upload" accept="audio/*">
+            <audio id="audio-player" loop></audio>
+            
+            <div class="buttons">
+                <button id="play-btn">Play Track</button>
+                <button id="pause-btn">Pause</button>
+            </div>
+        </div>
+        
+        <canvas id="visualizer"></canvas>
+
+        <div class="sliders">
+            <div class="slider-group">
+                <label>Speed (Upbeat vibe)</label>
+                <input type="range" id="speed-slider" min="0.5" max="1.5" step="0.05" value="1">
+            </div>
+            <div class="slider-group">
+                <label>Soft Filter (Muffle the highs)</label>
+                <input type="range" id="filter-slider" min="500" max="20000" step="100" value="20000">
+            </div>
+            <div class="slider-group">
+                <label>Fantasy Reverb (Echo intensity)</label>
+                <input type="range" id="reverb-slider" min="0" max="0.8" step="0.05" value="0">
+            </div>
+        </div>
     </div>
 
-    <div class="input-group">
-        <label>2. Keywords (soft, fantasy, bassboost)</label>
-        <input type="text" id="keywords" placeholder="Enter keywords...">
-    </div>
-
-    <button id="process-btn">Process & Download</button>
-
-    <div id="status">Waiting for your track...</div>
-    <a id="download-link" style="display: none;">Download New Tune</a>
-</div>
-
-<script>
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    const uploadInput = document.getElementById('audio-upload');
-    const keywordsInput = document.getElementById('keywords');
-    const processBtn = document.getElementById('process-btn');
-    const statusText = document.getElementById('status');
-    const downloadLink = document.getElementById('download-link');
-
-    processBtn.addEventListener('click', async () => {
-        const file = uploadInput.files[0];
-        const keywords = keywordsInput.value.toLowerCase();
-
-        if (!file) {
-            statusText.innerText = "Error: Upload a file first!";
-            return;
-        }
-
-        processBtn.disabled = true;
-        statusText.innerText = "Analyzing frequencies...";
-        downloadLink.style.display = 'none';
-
-        try {
-            const tempCtx = new AudioContext();
-            const arrayBuffer = await file.arrayBuffer();
-            const originalBuffer = await tempCtx.decodeAudioData(arrayBuffer);
-
-            const offlineCtx = new window.OfflineAudioContext(
-                originalBuffer.numberOfChannels,
-                originalBuffer.sampleRate * originalBuffer.duration,
-                originalBuffer.sampleRate
-            );
-
-            const source = offlineCtx.createBufferSource();
-            source.buffer = originalBuffer;
-
-            // --- THE FREQUENCY SPLITTER ---
-            
-            // Lane 1: LOWS (Bass & Kick)
-            const lowNode = offlineCtx.createBiquadFilter();
-            lowNode.type = 'lowpass';
-            lowNode.frequency.value = 250; 
-            source.connect(lowNode);
-
-            // Lane 2: MIDS (Melody & Chords)
-            const midHighPass = offlineCtx.createBiquadFilter();
-            midHighPass.type = 'highpass';
-            midHighPass.frequency.value = 250;
-            const midLowPass = offlineCtx.createBiquadFilter();
-            midLowPass.type = 'lowpass';
-            midLowPass.frequency.value = 4000;
-            source.connect(midHighPass);
-            midHighPass.connect(midLowPass);
-            let midNode = midLowPass; // This is our isolated melody lane
-
-            // Lane 3: HIGHS (Hi-hats & Static)
-            const highNode = offlineCtx.createBiquadFilter();
-            highNode.type = 'highpass';
-            highNode.frequency.value = 4000;
-            source.connect(highNode);
-
-            // --- APPLY EFFECTS TO SPECIFIC LANES ---
-            
-            let finalLow = lowNode;
-            let finalMid = midNode;
-            let finalHigh = highNode;
-
-            if (keywords.includes('fantasy')) {
-                // Apply heavy Echo ONLY to the Mids (Melody)
-                statusText.innerText = "Adding fantasy echo to melodies...";
-                const delay = offlineCtx.createDelay();
-                delay.delayTime.value = 0.6;
-                const feedback = offlineCtx.createGain();
-                feedback.gain.value = 0.5;
-                const midMix = offlineCtx.createGain();
-
-                finalMid.connect(delay);
-                delay.connect(feedback);
-                feedback.connect(delay);
-                
-                finalMid.connect(midMix);
-                delay.connect(midMix);
-                finalMid = midMix;
-            }
-
-            if (keywords.includes('soft')) {
-                // Mute the Highs entirely so it sounds muffled and warm
-                statusText.innerText = "Softening the sharp highs...";
-                const softGain = offlineCtx.createGain();
-                softGain.gain.value = 0.05; // Almost 0 volume
-                finalHigh.connect(softGain);
-                finalHigh = softGain;
-            }
-
-            if (keywords.includes('bassboost')) {
-                // Crank the volume ONLY on the low frequencies
-                statusText.innerText = "Boosting the bassline...";
-                const bassGain = offlineCtx.createGain();
-                bassGain.gain.value = 2.5; // 250% volume for the bass
-                finalLow.connect(bassGain);
-                finalLow = bassGain;
-            }
-
-            // --- RECOMBINE THE TRACK ---
-            finalLow.connect(offlineCtx.destination);
-            finalMid.connect(offlineCtx.destination);
-            finalHigh.connect(offlineCtx.destination);
-
-            source.start(0);
-
-            // Render it out
-            statusText.innerText = "Rendering final track...";
-            const renderedBuffer = await offlineCtx.startRendering();
-
-            // Convert to WAV
-            const wavBlob = audioBufferToWav(renderedBuffer);
-            const url = URL.createObjectURL(wavBlob);
-
-            downloadLink.href = url;
-            downloadLink.download = "split-vibe.wav";
-            downloadLink.style.display = 'block';
-            statusText.innerText = "Done! Hit the download button.";
-
-        } catch (error) {
-            console.error(error);
-            statusText.innerText = "An error occurred.";
-        } finally {
-            processBtn.disabled = false;
-        }
-    });
-
-    // WAV converter formula
-    function audioBufferToWav(buffer) {
-        const numOfChan = buffer.numberOfChannels;
-        const length = buffer.length * numOfChan * 2 + 44;
-        const outBuffer = new ArrayBuffer(length);
-        const view = new DataView(outBuffer);
-        const channels = [];
-        let i, sample, offset = 0, pos = 0;
-
-        function setUint16(data) { view.setUint16(pos, data, true); pos += 2; }
-        function setUint32(data) { view.setUint32(pos, data, true); pos += 4; }
-
-        setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157); 
-        setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
-        setUint32(buffer.sampleRate); setUint32(buffer.sampleRate * 2 * numOfChan);
-        setUint16(numOfChan * 2); setUint16(16); setUint32(0x61746164); 
-        setUint32(length - pos - 4);
-
-        for(i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
-
-        while(pos < length) {
-            for(i = 0; i < numOfChan; i++) {
-                sample = Math.max(-1, Math.min(1, channels[i][offset]));
-                sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767)|0;
-                view.setInt16(pos, sample, true); pos += 2;
-            }
-            offset++;
-        }
-        return new Blob([outBuffer], {type: "audio/wav"});
-    }
-</script>
-
+    <script src="script.js"></script>
 </body>
 </html>
