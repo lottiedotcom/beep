@@ -1,116 +1,156 @@
-// 1. Setup the Audio Environment
+// 1. Audio Context Setup
 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-const audioElement = document.getElementById('audio-player');
-const upload = document.getElementById('audio-upload');
+const mainAudioElement = document.getElementById('audio-player');
+const mainUpload = document.getElementById('audio-upload');
 const playBtn = document.getElementById('play-btn');
 const pauseBtn = document.getElementById('pause-btn');
 
-// Visualizer setup
-const canvas = document.getElementById('visualizer');
-const canvasCtx = canvas.getContext('2d');
-// Fix canvas resolution
-canvas.width = canvas.clientWidth;
-canvas.height = canvas.clientHeight;
-
-// Sliders
-const speedSlider = document.getElementById('speed-slider');
-const filterSlider = document.getElementById('filter-slider');
-const reverbSlider = document.getElementById('reverb-slider');
-
-// 2. Create the Audio Nodes (The Effect Pedals)
-let source;
+// 2. Create the Master Effects Chain
+const masterGain = audioContext.createGain(); // Everything merges here first
+const bassNode = audioContext.createBiquadFilter();
+const distortionNode = audioContext.createWaveShaper();
 const filterNode = audioContext.createBiquadFilter();
 const delayNode = audioContext.createDelay();
 const feedbackNode = audioContext.createGain();
 const dryWetMerge = audioContext.createGain();
 const analyser = audioContext.createAnalyser();
 
-// Configure initial node settings
-filterNode.type = 'lowpass';
-filterNode.frequency.value = 20000; // Start completely open (no muffling)
-delayNode.delayTime.value = 0.5;    // Half-second echo
-feedbackNode.gain.value = 0;        // Start with 0 reverb
-analyser.fftSize = 256;             // Resolution of the visualizer
+// Configure Initial Effect Settings
+bassNode.type = 'lowshelf';
+bassNode.frequency.value = 150; // Focus on deep bass
+bassNode.gain.value = 0;
 
-// 3. Handle File Uploads
-upload.addEventListener('change', function() {
-    const files = this.files;
-    if (files.length === 0) return;
-    
-    // Turn the uploaded file into a URL the audio player can read
-    const fileUrl = URL.createObjectURL(files[0]);
-    audioElement.src = fileUrl;
-    
-    // Only wire up the nodes once
-    if (!source) {
-        source = audioContext.createMediaElementSource(audioElement);
-        
-        // Routing the cables: Source -> Filter -> [Split: Clean Audio & Reverb Audio] -> Analyser -> Speakers
-        source.connect(filterNode);
-        
-        // Clean audio path
-        filterNode.connect(dryWetMerge);
-        
-        // Reverb audio path
-        filterNode.connect(delayNode);
-        delayNode.connect(feedbackNode);
-        feedbackNode.connect(delayNode); // Loops the echo
-        delayNode.connect(dryWetMerge);
-        
-        // Send everything to the visualizer, then out to the speakers
-        dryWetMerge.connect(analyser);
-        analyser.connect(audioContext.destination);
+distortionNode.curve = makeDistortionCurve(0);
+distortionNode.oversample = '4x';
+
+filterNode.type = 'lowpass';
+filterNode.frequency.value = 20000;
+
+delayNode.delayTime.value = 0.5;
+feedbackNode.gain.value = 0;
+
+analyser.fftSize = 256;
+
+// Route the Master Chain
+masterGain.connect(bassNode);
+bassNode.connect(distortionNode);
+distortionNode.connect(filterNode);
+
+// Split path for Reverb
+filterNode.connect(dryWetMerge); // Clean path
+filterNode.connect(delayNode);   // Echo path
+delayNode.connect(feedbackNode);
+feedbackNode.connect(delayNode);
+delayNode.connect(dryWetMerge);
+
+dryWetMerge.connect(analyser);
+analyser.connect(audioContext.destination);
+
+// 3. Helper Function for Tape Crunch (Distortion Math)
+function makeDistortionCurve(amount) {
+    const k = typeof amount === 'number' ? amount : 50;
+    const n_samples = 44100;
+    const curve = new Float32Array(n_samples);
+    const deg = Math.PI / 180;
+    for (let i = 0; i < n_samples; ++i) {
+        let x = i * 2 / n_samples - 1;
+        curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
+    }
+    return curve;
+}
+
+// 4. Main Track Setup
+let mainSourceConnected = false;
+mainUpload.addEventListener('change', function() {
+    if (this.files.length === 0) return;
+    mainAudioElement.src = URL.createObjectURL(this.files[0]);
+    if (!mainSourceConnected) {
+        const source = audioContext.createMediaElementSource(mainAudioElement);
+        source.connect(masterGain);
+        mainSourceConnected = true;
     }
 });
 
-// 4. Playback Controls
 playBtn.addEventListener('click', () => {
-    // Browsers require audio contexts to be "resumed" after a user click
     if (audioContext.state === 'suspended') audioContext.resume();
-    audioElement.play();
-    drawVisualizer(); // Start the animation loop
+    mainAudioElement.play();
+    drawVisualizer();
 });
 
-pauseBtn.addEventListener('click', () => {
-    audioElement.pause();
+pauseBtn.addEventListener('click', () => mainAudioElement.pause());
+
+// 5. Loop Pad Setup
+const pads = [1, 2, 3, 4];
+pads.forEach(padNum => {
+    const uploadInput = document.getElementById(`pad${padNum}-upload`);
+    const padBtn = document.getElementById(`pad${padNum}-btn`);
+    const padAudio = document.getElementById(`pad${padNum}-audio`);
+    let isConnected = false;
+
+    // Handle loop upload
+    uploadInput.addEventListener('change', function() {
+        if (this.files.length === 0) return;
+        padAudio.src = URL.createObjectURL(this.files[0]);
+        if (!isConnected) {
+            const source = audioContext.createMediaElementSource(padAudio);
+            source.connect(masterGain); // Send loop to the master effects
+            isConnected = true;
+        }
+        padBtn.innerText = `Pad ${padNum} Ready`;
+    });
+
+    // Handle Pad Click (Play/Stop Toggle)
+    padBtn.addEventListener('click', () => {
+        if (audioContext.state === 'suspended') audioContext.resume();
+        
+        if (padAudio.paused) {
+            padAudio.play();
+            padBtn.classList.add('active');
+            padBtn.innerText = `Stop Pad ${padNum}`;
+            drawVisualizer(); // Make sure visualizer runs
+        } else {
+            padAudio.pause();
+            padAudio.currentTime = 0; // Reset loop to start
+            padBtn.classList.remove('active');
+            padBtn.innerText = `Play Pad ${padNum}`;
+        }
+    });
 });
 
-// 5. Live Slider Controls
-speedSlider.addEventListener('input', (e) => {
-    audioElement.playbackRate = e.target.value;
+// 6. Live Slider Controls
+document.getElementById('speed-slider').addEventListener('input', (e) => {
+    mainAudioElement.playbackRate = e.target.value;
+    // Apply speed to all loops too!
+    pads.forEach(num => document.getElementById(`pad${num}-audio`).playbackRate = e.target.value);
 });
 
-filterSlider.addEventListener('input', (e) => {
-    filterNode.frequency.value = e.target.value;
+document.getElementById('filter-slider').addEventListener('input', (e) => filterNode.frequency.value = e.target.value);
+document.getElementById('reverb-slider').addEventListener('input', (e) => feedbackNode.gain.value = e.target.value);
+document.getElementById('bass-slider').addEventListener('input', (e) => bassNode.gain.value = e.target.value);
+document.getElementById('crunch-slider').addEventListener('input', (e) => {
+    distortionNode.curve = makeDistortionCurve(Number(e.target.value));
 });
 
-reverbSlider.addEventListener('input', (e) => {
-    feedbackNode.gain.value = e.target.value; 
-});
-
-// 6. The Visualizer Animation Loop
+// 7. Visualizer
+const canvas = document.getElementById('visualizer');
+const canvasCtx = canvas.getContext('2d');
+canvas.width = canvas.clientWidth;
+canvas.height = canvas.clientHeight;
 const bufferLength = analyser.frequencyBinCount;
 const dataArray = new Uint8Array(bufferLength);
 
 function drawVisualizer() {
-    // Only draw if the audio is playing
-    if (!audioElement.paused) {
-        requestAnimationFrame(drawVisualizer);
-    }
-    
+    requestAnimationFrame(drawVisualizer);
     analyser.getByteFrequencyData(dataArray);
     
-    // Clear the background (White)
     canvasCtx.fillStyle = '#ffffff';
     canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
     
     const barWidth = (canvas.width / bufferLength) * 2.5;
-    let barHeight;
     let x = 0;
     
-    // Draw the bars (Pink)
     for (let i = 0; i < bufferLength; i++) {
-        barHeight = dataArray[i] / 2;
+        let barHeight = dataArray[i] / 2;
         canvasCtx.fillStyle = '#ff66b2';
         canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
         x += barWidth + 1;
