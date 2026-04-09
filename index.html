@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lo-Fi Vibe Generator</title>
+    <title>Lo-Fi Audio Processor</title>
     <style>
-        /* Retro Y2K Styling */
         body {
-            background-color: #050505;
-            color: #39ff14; /* Neon Green */
-            font-family: 'Courier New', Courier, monospace;
+            background-color: #ffffff;
+            color: #ff66b2; /* Bright Pink */
+            font-family: 'Verdana', sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -17,17 +16,16 @@
             margin: 0;
         }
         .container {
-            background-color: #111;
-            border: 3px solid #ff00ff; /* Neon Pink */
-            padding: 30px;
-            width: 400px;
-            box-shadow: 8px 8px 0px #39ff14;
+            background-color: #fff0f5; /* Lavender Blush (very light pink) */
+            border: 2px solid #ff66b2;
+            padding: 40px;
+            width: 450px;
             text-align: center;
+            border-radius: 10px;
         }
         h1 {
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            text-shadow: 2px 2px #ff00ff;
+            letter-spacing: 1px;
+            margin-bottom: 30px;
         }
         .input-group {
             margin: 20px 0;
@@ -36,163 +34,239 @@
         label {
             font-weight: bold;
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
         }
         input[type="file"], input[type="text"] {
             width: 90%;
-            background: #000;
-            color: #39ff14;
-            border: 1px solid #ff00ff;
+            background: #ffffff;
+            color: #ff66b2;
+            border: 1px solid #ff66b2;
             padding: 10px;
-            font-family: 'Courier New', Courier, monospace;
+            border-radius: 5px;
         }
         button {
-            background-color: #ff00ff;
-            color: #000;
+            background-color: #ff66b2;
+            color: #ffffff;
             border: none;
-            padding: 15px 20px;
+            padding: 15px 25px;
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            text-transform: uppercase;
-            box-shadow: 4px 4px 0px #39ff14;
-            transition: all 0.1s;
+            border-radius: 5px;
+            width: 100%;
+            margin-top: 15px;
+            transition: background-color 0.2s;
         }
-        button:active {
-            box-shadow: 0px 0px 0px #39ff14;
-            transform: translate(4px, 4px);
+        button:hover {
+            background-color: #ff3399;
+        }
+        button:disabled {
+            background-color: #ffb3d9;
+            cursor: not-allowed;
         }
         #status {
-            margin-top: 15px;
+            margin-top: 20px;
             font-size: 14px;
-            color: #ff00ff;
+            font-weight: bold;
+        }
+        #download-link {
+            display: block;
+            margin-top: 20px;
+            color: #ff66b2;
+            font-weight: bold;
+            text-decoration: none;
+            border: 1px dashed #ff66b2;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #download-link:hover {
+            background-color: #ffe6f2;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Vibe Generator</h1>
+    <h1>Audio Processor</h1>
     
     <div class="input-group">
-        <label>1. Upload a Lo-Fi Track (.mp3 or .wav)</label>
+        <label>1. Upload Track</label>
         <input type="file" id="audio-upload" accept="audio/*">
     </div>
 
     <div class="input-group">
-        <label>2. Enter Keywords</label>
-        <input type="text" id="keywords" placeholder="Try: soft, upbeat, fantasy">
+        <label>2. Keywords (soft, upbeat, fantasy, glitch)</label>
+        <input type="text" id="keywords" placeholder="Enter words here...">
     </div>
 
-    <button id="generate-btn">Regenerate Tune</button>
-    <button id="stop-btn" style="background-color: #39ff14; margin-left: 10px;">Stop</button>
+    <button id="process-btn">Process & Download</button>
 
-    <div id="status">Waiting for input...</div>
+    <div id="status">Ready.</div>
+    <a id="download-link" style="display: none;">Download New Track</a>
 </div>
 
 <script>
-    // Set up the Web Audio API Context
     const AudioContext = window.AudioContext || window.webkitAudioContext;
-    let audioCtx;
-    let currentSource; // To keep track of the currently playing audio
-
     const uploadInput = document.getElementById('audio-upload');
     const keywordsInput = document.getElementById('keywords');
-    const generateBtn = document.getElementById('generate-btn');
-    const stopBtn = document.getElementById('stop-btn');
+    const processBtn = document.getElementById('process-btn');
     const statusText = document.getElementById('status');
+    const downloadLink = document.getElementById('download-link');
 
-    generateBtn.addEventListener('click', async () => {
+    processBtn.addEventListener('click', async () => {
         const file = uploadInput.files[0];
         const keywords = keywordsInput.value.toLowerCase();
 
         if (!file) {
-            statusText.innerText = "Error: Please upload a track first!";
+            statusText.innerText = "Please upload an audio file first.";
             return;
         }
 
-        statusText.innerText = "Processing audio...";
-
-        // Initialize AudioContext if it hasn't been yet (browsers require a user click first)
-        if (!audioCtx) {
-            audioCtx = new AudioContext();
-        }
-
-        // Stop any currently playing audio
-        if (currentSource) {
-            currentSource.stop();
-        }
+        processBtn.disabled = true;
+        statusText.innerText = "Reading file...";
+        downloadLink.style.display = 'none';
 
         try {
-            // 1. Read the file into raw data
+            // Standard audio context just to decode the file
+            const tempCtx = new AudioContext();
             const arrayBuffer = await file.arrayBuffer();
-            // 2. Decode the raw data into an audio buffer
-            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            const originalBuffer = await tempCtx.decodeAudioData(arrayBuffer);
 
-            // 3. Create the source node (the record player)
-            const source = audioCtx.createBufferSource();
-            source.buffer = audioBuffer;
-            currentSource = source; // Save it so we can stop it later
+            statusText.innerText = "Applying effects and rendering...";
 
-            // 4. Set up our effect chain starting point
-            let lastNodeInChain = source;
-
-            // --- THE KEYWORD LOGIC ---
-
-            // If keyword includes "upbeat" -> Play slightly faster
+            // Determine new duration based on speed
+            let playbackRate = 1.0;
             if (keywords.includes('upbeat')) {
-                source.playbackRate.value = 1.15; // 15% faster
+                playbackRate = 1.2; // 20% faster
             }
+            const newDuration = originalBuffer.duration / playbackRate;
 
-            // If keyword includes "soft" -> Muffle the high frequencies (Lowpass Filter)
+            // Create an OFFLINE context to render the file as fast as possible without playing it out loud
+            const offlineCtx = new window.OfflineAudioContext(
+                originalBuffer.numberOfChannels,
+                offlineCtxLength = originalBuffer.sampleRate * newDuration,
+                originalBuffer.sampleRate
+            );
+
+            const source = offlineCtx.createBufferSource();
+            source.buffer = originalBuffer;
+            source.playbackRate.value = playbackRate;
+
+            let lastNode = source;
+
+            // --- EFFECT: SOFT (Muffles high ends heavily) ---
             if (keywords.includes('soft')) {
-                const filter = audioCtx.createBiquadFilter();
+                const filter = offlineCtx.createBiquadFilter();
                 filter.type = 'lowpass';
-                filter.frequency.value = 800; // Cut off high, crisp sounds
-                lastNodeInChain.connect(filter);
-                lastNodeInChain = filter;
+                filter.frequency.value = 600; // Very muffled
+                lastNode.connect(filter);
+                lastNode = filter;
             }
 
-            // If keyword includes "fantasy" -> Add a dreamy echo (Delay Node)
+            // --- EFFECT: FANTASY (Dreamy Delay/Echo) ---
             if (keywords.includes('fantasy')) {
-                const delay = audioCtx.createDelay();
-                delay.delayTime.value = 0.4; // 0.4 seconds of delay
+                const delay = offlineCtx.createDelay();
+                delay.delayTime.value = 0.5; // Half second echo
 
-                // We need to merge the original sound with the delayed sound
-                const delayGain = audioCtx.createGain();
-                delayGain.gain.value = 0.3; // Make the echo quieter than the main track
+                const feedback = offlineCtx.createGain();
+                feedback.gain.value = 0.4; // Echo repeats
 
-                lastNodeInChain.connect(delay);
-                delay.connect(delayGain);
+                const dryWetMerge = offlineCtx.createGain();
+
+                lastNode.connect(delay);
+                delay.connect(feedback);
+                feedback.connect(delay); // Loop back for multiple echoes
                 
-                // Merge them into a master gain node before speakers
-                const masterMerge = audioCtx.createGain();
-                lastNodeInChain.connect(masterMerge);
-                delayGain.connect(masterMerge);
+                // Connect original signal and echo signal together
+                lastNode.connect(dryWetMerge);
+                delay.connect(dryWetMerge);
                 
-                lastNodeInChain = masterMerge;
+                lastNode = dryWetMerge;
             }
 
-            // 5. Connect the end of our chain to the computer speakers
-            lastNodeInChain.connect(audioCtx.destination);
+            // --- EFFECT: GLITCH (Breaks things apart rhythmically) ---
+            if (keywords.includes('glitch')) {
+                const stutterGain = offlineCtx.createGain();
+                const oscillator = offlineCtx.createOscillator();
+                
+                // Creates a harsh square wave that turns volume on and off rapidly
+                oscillator.type = 'square';
+                oscillator.frequency.value = 8; // Chops 8 times a second
+                
+                oscillator.connect(stutterGain.gain);
+                oscillator.start();
 
-            // 6. Play!
+                lastNode.connect(stutterGain);
+                lastNode = stutterGain;
+            }
+
+            // Connect final chain to the offline destination
+            lastNode.connect(offlineCtx.destination);
             source.start(0);
-            statusText.innerText = "Playing your generated vibe...";
+
+            // Render the audio!
+            const renderedBuffer = await offlineCtx.startRendering();
+
+            statusText.innerText = "Packaging into .wav file...";
+
+            // Convert the AudioBuffer to a WAV file Blob
+            const wavBlob = audioBufferToWav(renderedBuffer);
+            const url = URL.createObjectURL(wavBlob);
+
+            downloadLink.href = url;
+            downloadLink.download = "processed-vibe.wav";
+            downloadLink.style.display = 'block';
+            statusText.innerText = "Done! Ready to download.";
 
         } catch (error) {
             console.error(error);
-            statusText.innerText = "Error processing the audio file.";
+            statusText.innerText = "An error occurred during processing.";
+        } finally {
+            processBtn.disabled = false;
         }
     });
 
-    // Stop button logic
-    stopBtn.addEventListener('click', () => {
-        if (currentSource) {
-            currentSource.stop();
-            statusText.innerText = "Playback stopped.";
+    // Helper function to convert AudioBuffer to WAV format
+    function audioBufferToWav(buffer) {
+        const numOfChan = buffer.numberOfChannels;
+        const length = buffer.length * numOfChan * 2 + 44;
+        const outBuffer = new ArrayBuffer(length);
+        const view = new DataView(outBuffer);
+        const channels = [];
+        let i, sample, offset = 0, pos = 0;
+
+        function setUint16(data) { view.setUint16(pos, data, true); pos += 2; }
+        function setUint32(data) { view.setUint32(pos, data, true); pos += 4; }
+
+        setUint32(0x46464952); // "RIFF"
+        setUint32(length - 8); // file length - 8
+        setUint32(0x45564157); // "WAVE"
+        setUint32(0x20746d66); // "fmt " chunk
+        setUint32(16); // length = 16
+        setUint16(1); // PCM (uncompressed)
+        setUint16(numOfChan);
+        setUint32(buffer.sampleRate);
+        setUint32(buffer.sampleRate * 2 * numOfChan); // avg. bytes/sec
+        setUint16(numOfChan * 2); // block-align
+        setUint16(16); // 16-bit
+        setUint32(0x61746164); // "data" - chunk
+        setUint32(length - pos - 4); // chunk length
+
+        for(i = 0; i < buffer.numberOfChannels; i++) {
+            channels.push(buffer.getChannelData(i));
         }
-    });
+
+        while(pos < length) {
+            for(i = 0; i < numOfChan; i++) {
+                sample = Math.max(-1, Math.min(1, channels[i][offset])); // clamp
+                sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767)|0; // scale
+                view.setInt16(pos, sample, true); // write 16-bit sample
+                pos += 2;
+            }
+            offset++;
+        }
+        return new Blob([outBuffer], {type: "audio/wav"});
+    }
 </script>
 
 </body>
