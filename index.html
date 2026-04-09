@@ -3,38 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lo-Fi Live Mixer</title>
+    <title>Lo-Fi Loop Board & Mixer</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <div class="mixer-board">
-        <h1>Lo-Fi Mixer Board</h1>
+        <h1>Lo-Fi Loop Board</h1>
         
+        <div class="section-title">Main Master Track</div>
         <div class="controls">
             <input type="file" id="audio-upload" accept="audio/*">
             <audio id="audio-player" loop></audio>
             
             <div class="buttons">
-                <button id="play-btn">Play Track</button>
-                <button id="pause-btn">Pause</button>
+                <button id="play-btn">Play Master</button>
+                <button id="pause-btn">Pause Master</button>
+            </div>
+        </div>
+
+        <div class="section-title">Loop Pads</div>
+        <div class="loop-grid">
+            <div class="loop-pad">
+                <input type="file" id="pad1-upload" accept="audio/*" class="pad-upload">
+                <button id="pad1-btn" class="pad-btn">Pad 1</button>
+                <audio id="pad1-audio" loop></audio>
+            </div>
+            <div class="loop-pad">
+                <input type="file" id="pad2-upload" accept="audio/*" class="pad-upload">
+                <button id="pad2-btn" class="pad-btn">Pad 2</button>
+                <audio id="pad2-audio" loop></audio>
+            </div>
+            <div class="loop-pad">
+                <input type="file" id="pad3-upload" accept="audio/*" class="pad-upload">
+                <button id="pad3-btn" class="pad-btn">Pad 3</button>
+                <audio id="pad3-audio" loop></audio>
+            </div>
+            <div class="loop-pad">
+                <input type="file" id="pad4-upload" accept="audio/*" class="pad-upload">
+                <button id="pad4-btn" class="pad-btn">Pad 4</button>
+                <audio id="pad4-audio" loop></audio>
             </div>
         </div>
         
         <canvas id="visualizer"></canvas>
 
+        <div class="section-title">Master Effects</div>
         <div class="sliders">
             <div class="slider-group">
-                <label>Speed (Upbeat vibe)</label>
+                <label>Master Speed</label>
                 <input type="range" id="speed-slider" min="0.5" max="1.5" step="0.05" value="1">
             </div>
             <div class="slider-group">
-                <label>Soft Filter (Muffle the highs)</label>
+                <label>Soft Filter (Muffle Highs)</label>
                 <input type="range" id="filter-slider" min="500" max="20000" step="100" value="20000">
             </div>
             <div class="slider-group">
-                <label>Fantasy Reverb (Echo intensity)</label>
+                <label>Fantasy Echo (Reverb)</label>
                 <input type="range" id="reverb-slider" min="0" max="0.8" step="0.05" value="0">
+            </div>
+            <div class="slider-group">
+                <label>Bass Boost (Thump)</label>
+                <input type="range" id="bass-slider" min="0" max="20" step="1" value="0">
+            </div>
+            <div class="slider-group">
+                <label>Tape Crunch (Distortion)</label>
+                <input type="range" id="crunch-slider" min="0" max="100" step="1" value="0">
             </div>
         </div>
     </div>
