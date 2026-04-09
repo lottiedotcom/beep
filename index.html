@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lo-Fi Vibe Generator</title>
+    <style>
+        /* Retro Y2K Styling */
+        body {
+            background-color: #050505;
+            color: #39ff14; /* Neon Green */
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: #111;
+            border: 3px solid #ff00ff; /* Neon Pink */
+            padding: 30px;
+            width: 400px;
+            box-shadow: 8px 8px 0px #39ff14;
+            text-align: center;
+        }
+        h1 {
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px #ff00ff;
+        }
+        .input-group {
+            margin: 20px 0;
+            text-align: left;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="file"], input[type="text"] {
+            width: 90%;
+            background: #000;
+            color: #39ff14;
+            border: 1px solid #ff00ff;
+            padding: 10px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        button {
+            background-color: #ff00ff;
+            color: #000;
+            border: none;
+            padding: 15px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 4px 4px 0px #39ff14;
+            transition: all 0.1s;
+        }
+        button:active {
+            box-shadow: 0px 0px 0px #39ff14;
+            transform: translate(4px, 4px);
+        }
+        #status {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #ff00ff;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Vibe Generator</h1>
+    
+    <div class="input-group">
+        <label>1. Upload a Lo-Fi Track (.mp3 or .wav)</label>
+        <input type="file" id="audio-upload" accept="audio/*">
+    </div>
+
+    <div class="input-group">
+        <label>2. Enter Keywords</label>
+        <input type="text" id="keywords" placeholder="Try: soft, upbeat, fantasy">
+    </div>
+
+    <button id="generate-btn">Regenerate Tune</button>
+    <button id="stop-btn" style="background-color: #39ff14; margin-left: 10px;">Stop</button>
+
+    <div id="status">Waiting for input...</div>
+</div>
+
+<script>
+    // Set up the Web Audio API Context
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx;
+    let currentSource; // To keep track of the currently playing audio
+
+    const uploadInput = document.getElementById('audio-upload');
+    const keywordsInput = document.getElementById('keywords');
+    const generateBtn = document.getElementById('generate-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const statusText = document.getElementById('status');
+
+    generateBtn.addEventListener('click', async () => {
+        const file = uploadInput.files[0];
+        const keywords = keywordsInput.value.toLowerCase();
+
+        if (!file) {
+            statusText.innerText = "Error: Please upload a track first!";
+            return;
+        }
+
+        statusText.innerText = "Processing audio...";
+
+        // Initialize AudioContext if it hasn't been yet (browsers require a user click first)
+        if (!audioCtx) {
+            audioCtx = new AudioContext();
+        }
+
+        // Stop any currently playing audio
+        if (currentSource) {
+            currentSource.stop();
+        }
+
+        try {
+            // 1. Read the file into raw data
+            const arrayBuffer = await file.arrayBuffer();
+            // 2. Decode the raw data into an audio buffer
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+            // 3. Create the source node (the record player)
+            const source = audioCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            currentSource = source; // Save it so we can stop it later
+
+            // 4. Set up our effect chain starting point
+            let lastNodeInChain = source;
+
+            // --- THE KEYWORD LOGIC ---
+
+            // If keyword includes "upbeat" -> Play slightly faster
+            if (keywords.includes('upbeat')) {
+                source.playbackRate.value = 1.15; // 15% faster
+            }
+
+            // If keyword includes "soft" -> Muffle the high frequencies (Lowpass Filter)
+            if (keywords.includes('soft')) {
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 800; // Cut off high, crisp sounds
+                lastNodeInChain.connect(filter);
+                lastNodeInChain = filter;
+            }
+
+            // If keyword includes "fantasy" -> Add a dreamy echo (Delay Node)
+            if (keywords.includes('fantasy')) {
+                const delay = audioCtx.createDelay();
+                delay.delayTime.value = 0.4; // 0.4 seconds of delay
+
+                // We need to merge the original sound with the delayed sound
+                const delayGain = audioCtx.createGain();
+                delayGain.gain.value = 0.3; // Make the echo quieter than the main track
+
+                lastNodeInChain.connect(delay);
+                delay.connect(delayGain);
+                
+                // Merge them into a master gain node before speakers
+                const masterMerge = audioCtx.createGain();
+                lastNodeInChain.connect(masterMerge);
+                delayGain.connect(masterMerge);
+                
+                lastNodeInChain = masterMerge;
+            }
+
+            // 5. Connect the end of our chain to the computer speakers
+            lastNodeInChain.connect(audioCtx.destination);
+
+            // 6. Play!
+            source.start(0);
+            statusText.innerText = "Playing your generated vibe...";
+
+        } catch (error) {
+            console.error(error);
+            statusText.innerText = "Error processing the audio file.";
+        }
+    });
+
+    // Stop button logic
+    stopBtn.addEventListener('click', () => {
+        if (currentSource) {
+            currentSource.stop();
+            statusText.innerText = "Playback stopped.";
+        }
+    });
+</script>
+
+</body>
+</html>
