@@ -3,28 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lo-Fi Audio Processor</title>
+    <title>3-Band Lo-Fi Processor</title>
     <style>
         body {
-            background-color: #ffffff;
-            color: #ff66b2; /* Bright Pink */
-            font-family: 'Verdana', sans-serif;
+            background-color: #000000;
+            color: #ff66b2; /* Y2K Pink */
+            font-family: 'Courier New', Courier, monospace;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
+            background-image: radial-gradient(#ff66b2 1px, transparent 1px);
+            background-size: 20px 20px;
         }
         .container {
-            background-color: #fff0f5; /* Lavender Blush (very light pink) */
-            border: 2px solid #ff66b2;
-            padding: 40px;
+            background-color: #1a000d; 
+            border: 3px dashed #ffffff;
+            padding: 30px;
             width: 450px;
             text-align: center;
-            border-radius: 10px;
+            box-shadow: 10px 10px 0px #ff66b2;
         }
         h1 {
-            letter-spacing: 1px;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px #ffffff;
             margin-bottom: 30px;
         }
         .input-group {
@@ -35,59 +38,54 @@
             font-weight: bold;
             display: block;
             margin-bottom: 8px;
+            color: #ffffff;
         }
         input[type="file"], input[type="text"] {
             width: 90%;
-            background: #ffffff;
+            background: #000000;
             color: #ff66b2;
-            border: 1px solid #ff66b2;
+            border: 2px solid #ff66b2;
             padding: 10px;
-            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
         }
         button {
-            background-color: #ff66b2;
-            color: #ffffff;
-            border: none;
+            background-color: #ffffff;
+            color: #000000;
+            border: 2px solid #ff66b2;
             padding: 15px 25px;
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            border-radius: 5px;
             width: 100%;
             margin-top: 15px;
-            transition: background-color 0.2s;
+            text-transform: uppercase;
         }
         button:hover {
-            background-color: #ff3399;
-        }
-        button:disabled {
-            background-color: #ffb3d9;
-            cursor: not-allowed;
+            background-color: #ff66b2;
+            color: #ffffff;
         }
         #status {
             margin-top: 20px;
             font-size: 14px;
             font-weight: bold;
+            color: #ffffff;
         }
         #download-link {
             display: block;
             margin-top: 20px;
-            color: #ff66b2;
+            background-color: #ff66b2;
+            color: #000000;
             font-weight: bold;
             text-decoration: none;
-            border: 1px dashed #ff66b2;
             padding: 10px;
-            border-radius: 5px;
-        }
-        #download-link:hover {
-            background-color: #ffe6f2;
+            border: 2px solid #ffffff;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Audio Processor</h1>
+    <h1>Stem-Splitter Vibe</h1>
     
     <div class="input-group">
         <label>1. Upload Track</label>
@@ -95,14 +93,14 @@
     </div>
 
     <div class="input-group">
-        <label>2. Keywords (soft, upbeat, fantasy, glitch)</label>
-        <input type="text" id="keywords" placeholder="Enter words here...">
+        <label>2. Keywords (soft, fantasy, bassboost)</label>
+        <input type="text" id="keywords" placeholder="Enter keywords...">
     </div>
 
     <button id="process-btn">Process & Download</button>
 
-    <div id="status">Ready.</div>
-    <a id="download-link" style="display: none;">Download New Track</a>
+    <div id="status">Waiting for your track...</div>
+    <a id="download-link" style="display: none;">Download New Tune</a>
 </div>
 
 <script>
@@ -118,115 +116,124 @@
         const keywords = keywordsInput.value.toLowerCase();
 
         if (!file) {
-            statusText.innerText = "Please upload an audio file first.";
+            statusText.innerText = "Error: Upload a file first!";
             return;
         }
 
         processBtn.disabled = true;
-        statusText.innerText = "Reading file...";
+        statusText.innerText = "Analyzing frequencies...";
         downloadLink.style.display = 'none';
 
         try {
-            // Standard audio context just to decode the file
             const tempCtx = new AudioContext();
             const arrayBuffer = await file.arrayBuffer();
             const originalBuffer = await tempCtx.decodeAudioData(arrayBuffer);
 
-            statusText.innerText = "Applying effects and rendering...";
-
-            // Determine new duration based on speed
-            let playbackRate = 1.0;
-            if (keywords.includes('upbeat')) {
-                playbackRate = 1.2; // 20% faster
-            }
-            const newDuration = originalBuffer.duration / playbackRate;
-
-            // Create an OFFLINE context to render the file as fast as possible without playing it out loud
             const offlineCtx = new window.OfflineAudioContext(
                 originalBuffer.numberOfChannels,
-                offlineCtxLength = originalBuffer.sampleRate * newDuration,
+                originalBuffer.sampleRate * originalBuffer.duration,
                 originalBuffer.sampleRate
             );
 
             const source = offlineCtx.createBufferSource();
             source.buffer = originalBuffer;
-            source.playbackRate.value = playbackRate;
 
-            let lastNode = source;
+            // --- THE FREQUENCY SPLITTER ---
+            
+            // Lane 1: LOWS (Bass & Kick)
+            const lowNode = offlineCtx.createBiquadFilter();
+            lowNode.type = 'lowpass';
+            lowNode.frequency.value = 250; 
+            source.connect(lowNode);
 
-            // --- EFFECT: SOFT (Muffles high ends heavily) ---
-            if (keywords.includes('soft')) {
-                const filter = offlineCtx.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.value = 600; // Very muffled
-                lastNode.connect(filter);
-                lastNode = filter;
-            }
+            // Lane 2: MIDS (Melody & Chords)
+            const midHighPass = offlineCtx.createBiquadFilter();
+            midHighPass.type = 'highpass';
+            midHighPass.frequency.value = 250;
+            const midLowPass = offlineCtx.createBiquadFilter();
+            midLowPass.type = 'lowpass';
+            midLowPass.frequency.value = 4000;
+            source.connect(midHighPass);
+            midHighPass.connect(midLowPass);
+            let midNode = midLowPass; // This is our isolated melody lane
 
-            // --- EFFECT: FANTASY (Dreamy Delay/Echo) ---
+            // Lane 3: HIGHS (Hi-hats & Static)
+            const highNode = offlineCtx.createBiquadFilter();
+            highNode.type = 'highpass';
+            highNode.frequency.value = 4000;
+            source.connect(highNode);
+
+            // --- APPLY EFFECTS TO SPECIFIC LANES ---
+            
+            let finalLow = lowNode;
+            let finalMid = midNode;
+            let finalHigh = highNode;
+
             if (keywords.includes('fantasy')) {
+                // Apply heavy Echo ONLY to the Mids (Melody)
+                statusText.innerText = "Adding fantasy echo to melodies...";
                 const delay = offlineCtx.createDelay();
-                delay.delayTime.value = 0.5; // Half second echo
-
+                delay.delayTime.value = 0.6;
                 const feedback = offlineCtx.createGain();
-                feedback.gain.value = 0.4; // Echo repeats
+                feedback.gain.value = 0.5;
+                const midMix = offlineCtx.createGain();
 
-                const dryWetMerge = offlineCtx.createGain();
-
-                lastNode.connect(delay);
+                finalMid.connect(delay);
                 delay.connect(feedback);
-                feedback.connect(delay); // Loop back for multiple echoes
+                feedback.connect(delay);
                 
-                // Connect original signal and echo signal together
-                lastNode.connect(dryWetMerge);
-                delay.connect(dryWetMerge);
-                
-                lastNode = dryWetMerge;
+                finalMid.connect(midMix);
+                delay.connect(midMix);
+                finalMid = midMix;
             }
 
-            // --- EFFECT: GLITCH (Breaks things apart rhythmically) ---
-            if (keywords.includes('glitch')) {
-                const stutterGain = offlineCtx.createGain();
-                const oscillator = offlineCtx.createOscillator();
-                
-                // Creates a harsh square wave that turns volume on and off rapidly
-                oscillator.type = 'square';
-                oscillator.frequency.value = 8; // Chops 8 times a second
-                
-                oscillator.connect(stutterGain.gain);
-                oscillator.start();
-
-                lastNode.connect(stutterGain);
-                lastNode = stutterGain;
+            if (keywords.includes('soft')) {
+                // Mute the Highs entirely so it sounds muffled and warm
+                statusText.innerText = "Softening the sharp highs...";
+                const softGain = offlineCtx.createGain();
+                softGain.gain.value = 0.05; // Almost 0 volume
+                finalHigh.connect(softGain);
+                finalHigh = softGain;
             }
 
-            // Connect final chain to the offline destination
-            lastNode.connect(offlineCtx.destination);
+            if (keywords.includes('bassboost')) {
+                // Crank the volume ONLY on the low frequencies
+                statusText.innerText = "Boosting the bassline...";
+                const bassGain = offlineCtx.createGain();
+                bassGain.gain.value = 2.5; // 250% volume for the bass
+                finalLow.connect(bassGain);
+                finalLow = bassGain;
+            }
+
+            // --- RECOMBINE THE TRACK ---
+            finalLow.connect(offlineCtx.destination);
+            finalMid.connect(offlineCtx.destination);
+            finalHigh.connect(offlineCtx.destination);
+
             source.start(0);
 
-            // Render the audio!
+            // Render it out
+            statusText.innerText = "Rendering final track...";
             const renderedBuffer = await offlineCtx.startRendering();
 
-            statusText.innerText = "Packaging into .wav file...";
-
-            // Convert the AudioBuffer to a WAV file Blob
+            // Convert to WAV
             const wavBlob = audioBufferToWav(renderedBuffer);
             const url = URL.createObjectURL(wavBlob);
 
             downloadLink.href = url;
-            downloadLink.download = "processed-vibe.wav";
+            downloadLink.download = "split-vibe.wav";
             downloadLink.style.display = 'block';
-            statusText.innerText = "Done! Ready to download.";
+            statusText.innerText = "Done! Hit the download button.";
 
         } catch (error) {
             console.error(error);
-            statusText.innerText = "An error occurred during processing.";
+            statusText.innerText = "An error occurred.";
         } finally {
             processBtn.disabled = false;
         }
     });
 
-    // Helper function to convert AudioBuffer to WAV format
+    // WAV converter formula
     function audioBufferToWav(buffer) {
         const numOfChan = buffer.numberOfChannels;
         const length = buffer.length * numOfChan * 2 + 44;
@@ -238,30 +245,19 @@
         function setUint16(data) { view.setUint16(pos, data, true); pos += 2; }
         function setUint32(data) { view.setUint32(pos, data, true); pos += 4; }
 
-        setUint32(0x46464952); // "RIFF"
-        setUint32(length - 8); // file length - 8
-        setUint32(0x45564157); // "WAVE"
-        setUint32(0x20746d66); // "fmt " chunk
-        setUint32(16); // length = 16
-        setUint16(1); // PCM (uncompressed)
-        setUint16(numOfChan);
-        setUint32(buffer.sampleRate);
-        setUint32(buffer.sampleRate * 2 * numOfChan); // avg. bytes/sec
-        setUint16(numOfChan * 2); // block-align
-        setUint16(16); // 16-bit
-        setUint32(0x61746164); // "data" - chunk
-        setUint32(length - pos - 4); // chunk length
+        setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157); 
+        setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
+        setUint32(buffer.sampleRate); setUint32(buffer.sampleRate * 2 * numOfChan);
+        setUint16(numOfChan * 2); setUint16(16); setUint32(0x61746164); 
+        setUint32(length - pos - 4);
 
-        for(i = 0; i < buffer.numberOfChannels; i++) {
-            channels.push(buffer.getChannelData(i));
-        }
+        for(i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
 
         while(pos < length) {
             for(i = 0; i < numOfChan; i++) {
-                sample = Math.max(-1, Math.min(1, channels[i][offset])); // clamp
-                sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767)|0; // scale
-                view.setInt16(pos, sample, true); // write 16-bit sample
-                pos += 2;
+                sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767)|0;
+                view.setInt16(pos, sample, true); pos += 2;
             }
             offset++;
         }
